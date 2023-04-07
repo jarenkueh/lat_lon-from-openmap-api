@@ -1,0 +1,39 @@
+---
+title: "Using openmap api"
+author: "jarenk"
+date: "2023-01-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+Run the library needed
+```{r}
+library(tidyverse)
+library(httr)
+library(jsonlite)
+```
+
+Extract a sample for " 1 Bedok South Avenue" a place i stayed before in the past.
+You will noticed there is two results. Select anyone of those.
+
+```{r}
+#### Extracting a sample
+myadd_encoded<-URLencode("1 BEDOK STH AVE 1", reserved=TRUE)
+myadd<-GET(paste0("https://developers.onemap.sg/commonapi/search?searchVal=", 
+                  myadd_encoded, "&returnGeom=Y&getAddrDetails=Y&pageNum=1"))
+myadd_result<-fromJSON(content(myadd,"text"))
+print(myadd_result)
+myadd_result$results$LATITUDE[1]
+myadd_result$results$LATITUDE[2]
+myadd_result$results$LONGITUDE[2]
+```
+
