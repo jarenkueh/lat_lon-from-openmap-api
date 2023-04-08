@@ -37,3 +37,103 @@ myadd_result$results$LATITUDE[2]
 myadd_result$results$LONGITUDE[2]
 ```
 
+```{r}
+# Define a function to get coordinates from OneMap API
+getcoordinates <- function(address) {
+  encoded_address <- URLencode(address, reserved = TRUE) # Encode reserved characters)
+  req <- GET(paste0("https://developers.onemap.sg/commonapi/search?searchVal=", 
+                    encoded_address, "&returnGeom=Y&getAddrDetails=Y&pageNum=1"))
+  resultsdict <- fromJSON(content(req, "text"))
+  print(resultsdict) # Add this line to print the resultsdict object
+  if (resultsdict$found > 0 && length(resultsdict$results) > 0){
+    lat <- resultsdict$results$LATITUDE[[1]] ###Should add a [[1]] here to get firstly appeared data as some data throws out multiple lat lon, example 1 Beach Road
+    lon <- resultsdict$results$LONGITUDE[[1]]
+    return(c(lat, lon))
+  } else {
+    return(list(Latitude = NA, Longitude = NA))
+  }
+}
+```
+
+I loaded a dataframe of HDB property information to my environment before executing the rest of following code.
+Main extraction
+```{r}
+# Initialize empty lists for coordinates and failed addresses
+coordinateslist <- list()
+count <- 0
+failed_count <- 0
+exec_time <- system.time(
+# Loop over the address list and get coordinates
+for (i in seq_along(addresslist)){
+  address <- addresslist[i]
+  tryCatch({
+    coords <- getcoordinates(address)
+    if (!is.null(coords)) {
+      count <- count + 1
+      coordinateslist[[i]] <- coords
+      cat("Processed", count, "of", length(addresslist), "addresses\n")
+    } else {
+      failed_count <- failed_count + 1
+      cat("Failed to extract coordinates for address", address, "\n")
+    }
+  }, error = function(e) {
+    failed_count <- failed_count + 1
+    cat("Error extracting coordinates for address", address, ":", e$message, "\n")
+  })
+  Sys.sleep(1) # Add a delay of 1 second between API requests
+}
+)
+exec_time[1:5]
+cat("Total Number of Addresses With No Coordinates:", failed_count, "\n")
+
+q<-coordinateslist
+
+```
+
+This is my run time for exec_time[1:5]
+ user.self   sys.self    elapsed user.child  sys.child 
+   194.716     89.642  14453.996      0.491      0.622
+   
+   Elapsed seconds of 14.45k ie ~4hours
+Store extracted data
+
+```{r}
+# create an empty data frame to store the results
+coord_df <- data.frame(Latitude = numeric(), Longitude = numeric())
+
+# loop through each element of the original list
+for (i in 1:length(q)) {
+  
+  # get the current element of the original list
+  curr_element <- q[[i]]
+  
+  # get the number of pairs in the current element
+  num_pairs <- length(curr_element) %/% 2
+  
+  # loop through each pair and add it to the coord_df data frame
+  for (j in 1:num_pairs) {
+    start_index <- (j - 1) * 2 + 1
+    end_index <- start_index + 1
+    lat <- as.numeric(curr_element[start_index])
+    long <- as.numeric(curr_element[end_index])
+    coord_df <- rbind(coord_df, data.frame(Latitude = lat, Longitude = long))
+  }
+}
+
+print(coord_df)
+
+```
+
+Combine your result coord_df with the original dataframe for property detail
+```{r}
+df_combined <- cbind(df, coord_df)
+```
+
+I saved in my own directory
+```{r}
+write.csv(df_combined,file="Property with LatLon_Full.csv")
+
+########
+save.image("openmapapi.Rdata")
+```
+
